@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QRary Smart Library</title>
+<style>
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fff8f2; margin:0;}
+header { background-color:#8b0000; color:white; padding:20px; text-align:center; font-size:24px; font-weight:bold;}
+.container { max-width:1000px; margin:30px auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.1); text-align:center;}
+input { padding:10px; margin:8px; width:80%; border-radius:6px; border:1px solid #ccc;}
+button { background-color:#b71c1c; color:white; border:none; padding:10px 18px; margin:6px; border-radius:8px; cursor:pointer; font-size:15px;}
+button:hover { background-color:#ffb300; color:black;}
+.hidden { display:none; }
+.book-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:20px; margin-top:20px;}
+.book { background:#fdf3e6; border-radius:10px; padding:15px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+.book img { width:100%; height:250px; object-fit:cover; border-radius:8px;}
+</style>
+</head>
+<body>
+
+<header>📚 QRary Smart Library</header>
+
+<!-- Role Selection -->
+<div class="container" id="roleSelect">
+  <h2>Welcome to QRary</h2>
+  <button onclick="showUserAccess()">User Access</button>
+  <button onclick="showAdminAccess()">Admin Access</button>
+</div>
+
+<!-- Admin Menu -->
+<div class="container hidden" id="adminMenu">
+  <h2>Admin Access</h2>
+  <button onclick="showAdminRegister()">Register as Admin</button>
+  <button onclick="showAdminLogin()">Login as Admin</button>
+  <button onclick="goBack()">⬅ Back</button>
+</div>
+
+<!-- Admin Registration -->
+<div class="container hidden" id="adminRegister">
+  <h2>Admin Registration</h2>
+  <input id="adminUser" placeholder="Username">
+  <input type="password" id="adminPass" placeholder="Password">
+  <button onclick="registerAdmin()">Register</button>
+  <button onclick="goAdminMenu()">⬅ Back</button>
+</div>
+
+<!-- Admin Login -->
+<div class="container hidden" id="adminLogin">
+  <h2>Admin Login</h2>
+  <input id="loginAdminUser" placeholder="Username">
+  <input type="password" id="loginAdminPass" placeholder="Password">
+  <button onclick="loginAdmin()">Login</button>
+  <button onclick="goAdminMenu()">⬅ Back</button>
+</div>
+
+<!-- User Registration -->
+<div class="container hidden" id="userRegister">
+  <h2>User Registration</h2>
+  <input id="userName" placeholder="Full Name">
+  <input id="userUser" placeholder="Username">
+  <input type="password" id="userPass" placeholder="Password">
+  <button onclick="registerUser()">Register</button>
+  <p>Already registered? <a href="#" onclick="showUserLogin()">Login here</a></p>
+</div>
+
+<!-- User Login -->
+<div class="container hidden" id="userLogin">
+  <h2>User Login</h2>
+  <input id="loginUser" placeholder="Username">
+  <input type="password" id="loginPass" placeholder="Password">
+  <button onclick="loginUser()">Login</button>
+  <button onclick="showUserRegister()">⬅ Back</button>
+</div>
+
+<!-- Library Dashboard -->
+<div class="container hidden" id="library">
+  <h2>Welcome, <span id="userLabel"></span></h2>
+  <button onclick="logout()">Logout</button>
+
+  <!-- Admin toggle -->
+  <div id="adminToggle" class="hidden" style="margin: 15px 0;">
+    <label>
+      <input type="checkbox" id="adminCheckbox" onchange="toggleAdminPanel()">
+      <b>📘 Admin Controls</b>
+    </label>
+  </div>
+
+  <!-- Admin Add Book Panel -->
+  <div id="adminPanel" class="hidden" style="border:1px solid #ccc; padding:15px; margin-bottom:20px; border-radius:8px;">
+    <h3>Add New Book</h3>
+    <input id="newTitle" placeholder="Book Title">
+    <input id="newAuthor" placeholder="Author">
+    <input id="newLoc" placeholder="Location">
+    <input type="file" id="newCoverFile" accept="image/*" style="width:auto;">
+    <button onclick="addBook()">Add Book</button>
+  </div>
+
+  <!-- Book Grid -->
+  <div class="book-grid" id="bookGrid"></div>
+</div>
+
+<script>
+// Data storage
+let admins = JSON.parse(localStorage.getItem('admins')) || [];
+let users = JSON.parse(localStorage.getItem('users')) || [];
+let books = JSON.parse(localStorage.getItem('books')) || [];
+let currentUser = null;
+
+// Navigation
+function showAdminAccess(){ hideAll(); document.getElementById('adminMenu').classList.remove('hidden'); }
+function showUserAccess(){ hideAll(); document.getElementById('userRegister').classList.remove('hidden'); }
+function goBack(){ hideAll(); document.getElementById('roleSelect').classList.remove('hidden'); }
+function goAdminMenu(){ hideAll(); document.getElementById('adminMenu').classList.remove('hidden'); }
+function showAdminRegister(){ hideAll(); document.getElementById('adminRegister').classList.remove('hidden'); }
+function showAdminLogin(){ hideAll(); document.getElementById('adminLogin').classList.remove('hidden'); }
+function showUserRegister(){ hideAll(); document.getElementById('userRegister').classList.remove('hidden'); }
+function showUserLogin(){ hideAll(); document.getElementById('userLogin').classList.remove('hidden'); }
+function hideAll(){ document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden')); }
+
+// Admin registration/login
+function registerAdmin(){
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value.trim();
+  if(!u || !p) return alert("Fill all fields.");
+  if(admins.find(a => a.username === u)) return alert("Username exists.");
+  admins.push({username:u,password:p});
+  localStorage.setItem('admins',JSON.stringify(admins));
+  alert("Admin registered! Please log in.");
+  showAdminLogin();
+}
+
+function loginAdmin(){
+  const u = document.getElementById('loginAdminUser').value.trim();
+  const p = document.getElementById('loginAdminPass').value.trim();
+  const found = admins.find(a => a.username===u && a.password===p);
+  if(!found) return alert("Invalid credentials.");
+  currentUser = {username:u,role:'admin'};
+  openLibrary();
+}
+
+// User registration/login
+function registerUser(){
+  const n = document.getElementById('userName').value.trim();
+  const u = document.getElementById('userUser').value.trim();
+  const p = document.getElementById('userPass').value.trim();
+  if(!n || !u || !p) return alert("Fill all fields.");
+  if(users.find(a => a.username===u)) return alert("Username exists.");
+  users.push({name:n,username:u,password:p,role:'user',blocked:false,reserved:[]});
+  localStorage.setItem('users',JSON.stringify(users));
+  alert("User registered! Please log in.");
+  showUserLogin();
+}
+
+function loginUser(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value.trim();
+  const found = users.find(a=>a.username===u && a.password===p);
+  if(!found) return alert("Invalid credentials.");
+  if(found.blocked) return alert("Blocked by admin.");
+  currentUser = found;
+  openLibrary();
+}
+
+// Open Library Dashboard
+function openLibrary(){
+  hideAll();
+  document.getElementById('library').classList.remove('hidden');
+  document.getElementById('userLabel').textContent = currentUser.username + " (" + currentUser.role + ")";
+  if(currentUser.role==='admin'){
+    document.getElementById('adminToggle').classList.remove('hidden');
+    document.getElementById('adminCheckbox').checked = false;
+    document.getElementById('adminPanel').classList.add('hidden');
+  } else {
+    document.getElementById('adminToggle').classList.add('hidden');
+    document.getElementById('adminPanel').classList.add('hidden');
+  }
+  updateBookStatuses();
+  renderBooks();
+}
+
+function toggleAdminPanel(){
+  document.getElementById('adminPanel').classList.toggle('hidden');
+}
+
+// Logout
+function logout(){
+  currentUser = null;
+  localStorage.setItem('users',JSON.stringify(users));
+  localStorage.setItem('books',JSON.stringify(books));
+  hideAll();
+  document.getElementById('roleSelect').classList.remove('hidden');
+}
+
+// Update book statuses (auto-release expired reservations)
+function updateBookStatuses(){
+  const now = new Date();
+  let usersChanged = false;
+  books.forEach(b=>{
+    if(b.reservedUntil && new Date(b.reservedUntil)<now){
+      b.status='Available';
+      if(b.reservedBy){
+        const u = users.find(x=>x.username===b.reservedBy);
+        if(u){
+          u.reserved = u.reserved.filter(title=>title!==b.title);
+          usersChanged=true;
+        }
+      }
+      b.reservedBy=null;
+      b.reservedUntil=null;
+    }
+  });
+  localStorage.setItem('books',JSON.stringify(books));
+  if(usersChanged) localStorage.setItem('users',JSON.stringify(users));
+}
+
+// Render books for both users and admins
+function renderBooks(){
+  const grid = document.getElementById('bookGrid');
+  grid.innerHTML='';
+  if(books.length===0){ grid.innerHTML='<p>No books available yet.</p>'; return; }
+  books.forEach((b,i)=>{
+    const div=document.createElement('div');
+    div.className='book';
+    let actionHTML='';
+    if(currentUser.role==='user'){
+      if(b.status==='Available') actionHTML=`<button onclick="reserveBook(${i})">Reserve</button>`;
+      else if(b.reservedBy===currentUser.username) actionHTML=`<button onclick="unreserveBook(${i})">Unreserve</button>`;
+      else actionHTML=`<p><i>Reserved by someone else</i></p>`;
+    }
+    const adminAction = currentUser.role==='admin' ? `<button onclick="deleteBook(${i})">Delete</button>` : '';
+    div.innerHTML=`
+      <img src="${b.cover || ''}" alt="Book cover">
+      <h4>${b.title}</h4>
+      <p>${b.author}</p>
+      <p><b>${b.location}</b></p>
+      ${actionHTML}
+      ${adminAction}
+    `;
+    grid.appendChild(div);
+  });
+}
+
+// Admin: Add Book
+function addBook(){
+  const t=document.getElementById('newTitle').value.trim();
+  const a=document.getElementById('newAuthor').value.trim();
+  const l=document.getElementById('newLoc').value.trim();
+  const f=document.getElementById('newCoverFile').files[0];
+
+  if(!t||!a||!l||!f) return alert('Fill all fields & select image.');
+  if(f.size>2*1024*1024) return alert('Image too large (max 2MB).');
+
+  const reader=new FileReader();
+  reader.onload=function(e){
+    books.push({title:t,author:a,location:l,cover:e.target.result,status:'Available',reservedBy:null,reservedUntil:null});
+    localStorage.setItem('books',JSON.stringify(books));
+    renderBooks();
+    document.getElementById('newTitle').value='';
+    document.getElementById('newAuthor').value='';
+    document.getElementById('newLoc').value='';
+    document.getElementById('newCoverFile').value='';
+    alert('Book added successfully!');
+  };
+  reader.readAsDataURL(f);
+}
+
+// Admin: Delete Book
+function deleteBook(i){
+  if(confirm('Are you sure you want to delete this book?')){
+    books.splice(i,1);
+    localStorage.setItem('books',JSON.stringify(books));
+    renderBooks();
+  }
+}
+
+// User: Reserve Book
+function reserveBook(i){
+  if(currentUser.role!=='user') return alert("Only users can reserve books.");
+  const u = users.find(x=>x.username===currentUser.username);
+  const b = books[i];
+  if(b.status!=='Available') return alert("Book unavailable.");
+  if(u.reserved.length>=5) return alert("Reservation limit reached.");
+  b.status='Reserved';
+  b.reservedBy=u.username;
+  b.reservedUntil = new Date(Date.now()+20*60000).toISOString(); // 20 min
+  u.reserved.push(b.title);
+  localStorage.setItem('books',JSON.stringify(books));
+  localStorage.setItem('users',JSON.stringify(users));
+  renderBooks();
+}
+
+// User: Unreserve Book
+function unreserveBook(i){
+  const b = books[i];
+  const u = users.find(x=>x.username===currentUser.username);
+  if(b.reservedBy!==currentUser.username) return alert("Can only unreserve your books.");
+  b.status='Available';
+  b.reservedBy=null;
+  b.reservedUntil=null;
+  u.reserved = u.reserved.filter(x=>x!==b.title);
+  localStorage.setItem('books',JSON.stringify(books));
+  localStorage.setItem('users',JSON.stringify(users));
+  renderBooks();
+}
+</script>
+
+</body>
+</html>
